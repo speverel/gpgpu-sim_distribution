@@ -1556,7 +1556,7 @@ void bsmad_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst )
 			unsigned mask = (unsigned)(pow(2,ip)-1) << (pos*ip);
 			for (int j = 0; j < THREADS; j++) {
 				//sum += ((mask & buffer[j][buf]) >> (pos*ip)) * synapse[j];
-				sum += trunc(((mask & buffer[j][buf]) >> (pos*ip)) * synapse[j], op);
+				sum += trunc(((mask & buffer[j][buf]) >> (pos*ip)) * synapse[j], op); // TODO: don't think we should truncate yet
 			}
 			// get the previous output
 			mask = (unsigned)(pow(2,op)-1) << (op*(i-buffer_data_start));
@@ -1613,6 +1613,8 @@ void bsmad_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst )
 	// mutable latency variable???
 	//pI->latency = (ip+3)/4;
 }
+
+
 
 void call_impl( const ptx_instruction *pI, ptx_thread_info *thread ) 
 {
@@ -4577,6 +4579,9 @@ void tex_impl( const ptx_instruction *pI, ptx_thread_info *thread )
 
 void txq_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void trap_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
+void wmma_load_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
+void wmma_store_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
+void wmma_mma_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
 void vabsdiff_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void vadd_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void vmad_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
