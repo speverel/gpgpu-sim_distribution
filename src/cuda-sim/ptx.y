@@ -213,6 +213,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	extern int g_func_decl;
 	int ptx_lex(void);
 	int ptx_error(const char *);
+
+  extern "C" void add_8vector_operand( const char *d1, const char *d2, const char *d3, const char *d4, const char *d5, const char *d6, const char *d7, const char *d8) ;
 %}
 
 %%
@@ -541,7 +543,9 @@ operand: IDENTIFIER  { add_scalar_operand( $1 ); }
 	;
 
 vector_operand: LEFT_BRACE IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { add_2vector_operand($2,$4); }
-		| LEFT_BRACE IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { add_8vector_operand($2,$4,$6,$8,$10,$12,$14,$16); }
+		| LEFT_BRACE IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { 
+          add_8vector_operand($2,$4,$6,$8,$10,$12,$14,$16); 
+    }
 		| LEFT_BRACE IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { add_3vector_operand($2,$4,$6); }
 		| LEFT_BRACE IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { add_4vector_operand($2,$4,$6,$8); }
 		| LEFT_BRACE IDENTIFIER RIGHT_BRACE { add_1vector_operand($2); }

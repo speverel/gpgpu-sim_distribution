@@ -726,7 +726,7 @@ void add_4vector_operand( const char *d1, const char *d2, const char *d3, const 
    g_operands.push_back( operand_info(s1,s2,s3,s4) );
 }
 
-void add_8vector_operand( const char *d1, const char *d2, const char *d3, const char *d4, const char *d5, const char *d6, const char *d7, const char *d8 ) 
+extern "C" void add_8vector_operand( const char *d1, const char *d2, const char *d3, const char *d4, const char *d5, const char *d6, const char *d7, const char *d8 ) 
 {
    PTX_PARSE_DPRINTF("add_8vector_operand");
    const symbol *s1 = g_current_symbol_table->lookup(d1);
