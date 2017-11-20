@@ -4579,9 +4579,125 @@ void tex_impl( const ptx_instruction *pI, ptx_thread_info *thread )
 
 void txq_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void trap_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
-void wmma_load_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
-void wmma_store_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
-void wmma_mma_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) { inst_not_implemented(pI); }
+void wmma_load_impl( const ptx_instruction *pI, ptx_thread_info *thread ) 
+{
+   const operand_info &dst = pI->dst();
+   const operand_info &src1 = pI->src1();
+
+   unsigned type = pI->get_type();
+
+   ptx_reg_t src1_data = thread->get_operand_value(src1, dst, type, thread, 1);
+   ptx_reg_t data;
+   memory_space_t space(global_space);
+   unsigned vector_spec = pI->get_vector();
+
+   memory_space *mem = NULL;
+   addr_t addr = src1_data.u32;
+
+   decode_space(space,thread,src1,mem,addr);
+
+   size_t size;
+   int t;
+   data.u64=0;
+   type_info_key::type_decode(type,size,t);
+   if (!vector_spec) {
+      mem->read(addr,size/8,&data.s64);
+      if( type == S16_TYPE || type == S32_TYPE ) 
+         sign_extend(data,size,dst);
+      thread->set_operand_value(dst,data, type, thread, pI);
+   } else {
+      ptx_reg_t data1, data2, data3, data4;
+      mem->read(addr,size/8,&data1.s64);
+      mem->read(addr+size/8,size/8,&data2.s64);
+      if (vector_spec != V2_TYPE) { //either V3 or V4
+         mem->read(addr+2*size/8,size/8,&data3.s64);
+         if (vector_spec != V3_TYPE) { //v4
+            mem->read(addr+3*size/8,size/8,&data4.s64);
+            thread->set_vector_operand_values(dst,data1,data2,data3,data4);
+         } else //v3
+            thread->set_vector_operand_values(dst,data1,data2,data3,data3);
+      } else //v2
+         thread->set_vector_operand_values(dst,data1,data2,data2,data2);
+   }
+   thread->m_last_effective_address = addr;
+   thread->m_last_memory_space = space; 
+}
+void wmma_store_impl( const ptx_instruction *pI, ptx_thread_info *thread ) 
+{ 
+   const operand_info &dst = pI->dst();
+   const operand_info &src1 = pI->src1(); //may be scalar or vector of regs
+   unsigned type = pI->get_type();
+   ptx_reg_t addr_reg = thread->get_operand_value(dst, dst, type, thread, 1);
+   ptx_reg_t data;
+   memory_space_t space(global_space);
+   unsigned vector_spec = pI->get_vector();
+
+   memory_space *mem = NULL;
+   addr_t addr = addr_reg.u32;
+
+   decode_space(space,thread,dst,mem,addr);
+
+   size_t size;
+   int t;
+   type_info_key::type_decode(type,size,t);
+
+   if (!vector_spec) {
+      data = thread->get_operand_value(src1, dst, type, thread, 1);
+      mem->write(addr,size/8,&data.s64,thread,pI);
+   } else {
+      if (vector_spec == V2_TYPE) {
+         ptx_reg_t* ptx_regs = new ptx_reg_t[2]; 
+         thread->get_vector_operand_values(src1, ptx_regs, 2); 
+         mem->write(addr,size/8,&ptx_regs[0].s64,thread,pI);
+         mem->write(addr+size/8,size/8,&ptx_regs[1].s64,thread,pI);
+         delete [] ptx_regs;
+      }
+      if (vector_spec == V3_TYPE) {
+         ptx_reg_t* ptx_regs = new ptx_reg_t[3]; 
+         thread->get_vector_operand_values(src1, ptx_regs, 3); 
+         mem->write(addr,size/8,&ptx_regs[0].s64,thread,pI);
+         mem->write(addr+size/8,size/8,&ptx_regs[1].s64,thread,pI);
+         mem->write(addr+2*size/8,size/8,&ptx_regs[2].s64,thread,pI);
+         delete [] ptx_regs;
+      }
+      if (vector_spec == V4_TYPE) {
+         ptx_reg_t* ptx_regs = new ptx_reg_t[4]; 
+         thread->get_vector_operand_values(src1, ptx_regs, 4); 
+         mem->write(addr,size/8,&ptx_regs[0].s64,thread,pI);
+         mem->write(addr+size/8,size/8,&ptx_regs[1].s64,thread,pI);
+         mem->write(addr+2*size/8,size/8,&ptx_regs[2].s64,thread,pI);
+         mem->write(addr+3*size/8,size/8,&ptx_regs[3].s64,thread,pI);
+         delete [] ptx_regs;
+      }
+   }
+   thread->m_last_effective_address = addr;
+   thread->m_last_memory_space = space; 
+}
+void wmma_mma_impl( const ptx_instruction *pI, core_t *core, warp_inst_t inst ) 
+{
+	int tid = inst.warp_id_func() * core->get_warp_size();
+	const int THREADS = inst.active_count();
+	const operand_info &dst = pI->dst();
+	ptx_thread_info *thread = core->get_thread_info()[tid];
+	ptx_warp_info *warp_info = thread->m_warp_info;
+	warp_info->inc_done_threads();
+   for (unsigned i = 0, j = 0; i < core->get_warp_size(); i++) {
+	  if (inst.active(i)) j++;
+	  if (j == warp_info->get_done_threads()) {
+		  thread = core->get_thread_info()[tid+i];
+		  ptx_reg_t data1, data2, data3, data4;
+		  data1.f16 = 0;
+		  data2.f16 = 0;
+		  data3.f16 = 0;
+		  data4.f16 = 0;
+        thread->set_vector_operand_values(dst,data1,data2,data3,data4);
+	  }
+   }
+	// once the warp has finished, set the number of completed threads back to 0 for the next warp
+	if (warp_info->get_done_threads() == THREADS)	{
+		warp_info->reset_done_threads();
+	}
+}
 void vabsdiff_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void vadd_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }
 void vmad_impl( const ptx_instruction *pI, ptx_thread_info *thread ) { inst_not_implemented(pI); }

@@ -479,12 +479,16 @@ void ptx_instruction::set_fp_or_int_archop(){
     oprnd_type=UN_OP;
 	if((m_opcode == MEMBAR_OP)||(m_opcode == SSY_OP )||(m_opcode == BRA_OP) || (m_opcode == BAR_OP) || (m_opcode == RET_OP) || (m_opcode == RETP_OP) || (m_opcode == NOP_OP) || (m_opcode == EXIT_OP) || (m_opcode == CALLP_OP) || (m_opcode == CALL_OP)){
 			// do nothing
-	}else if((m_opcode == CVT_OP || m_opcode == SET_OP || m_opcode == SLCT_OP)){
-		if(get_type2()==F16_TYPE || get_type2()==F32_TYPE || get_type2() == F64_TYPE || get_type2() == FF64_TYPE){
+	}
+	else if((m_opcode == CVT_OP || m_opcode == SET_OP || m_opcode == SLCT_OP))
+	{
+		if(get_type2()==F16_TYPE || get_type2()==F32_TYPE || get_type2() == F64_TYPE || get_type2() == FF64_TYPE) {
 		    oprnd_type= FP_OP;
-		}else oprnd_type=INT_OP;
-
-	}else{
+		} else oprnd_type=INT_OP;
+	}
+	else if ((m_opcode == WMMA_LOAD_OP || m_opcode == WMMA_STORE_OP || m_opcode == WMMA_MMA_OP)) {
+		oprnd_type = FP_OP;
+	} else {
 		if(get_type()==F16_TYPE || get_type()==F32_TYPE || get_type() == F64_TYPE || get_type() == FF64_TYPE){
 		    oprnd_type= FP_OP;
 		}else oprnd_type=INT_OP;
@@ -493,7 +497,9 @@ void ptx_instruction::set_fp_or_int_archop(){
 void ptx_instruction::set_mul_div_or_other_archop(){
     sp_op=OTHER_OP;
 	if((m_opcode != MEMBAR_OP) && (m_opcode != SSY_OP) && (m_opcode != BRA_OP) && (m_opcode != BAR_OP) && (m_opcode != EXIT_OP) && (m_opcode != NOP_OP) && (m_opcode != RETP_OP) && (m_opcode != RET_OP) && (m_opcode != CALLP_OP) && (m_opcode != CALL_OP)){
-		if(get_type()==F32_TYPE || get_type() == F64_TYPE || get_type() == FF64_TYPE){
+		if ((m_opcode == WMMA_MMA_OP) || (m_opcode == WMMA_LOAD_OP) || (m_opcode == WMMA_STORE_OP)) {
+			sp_op = FP_MUL_OP;
+		} else if (get_type()==F32_TYPE || get_type() == F64_TYPE || get_type() == FF64_TYPE){
 			switch(get_opcode()){
 				case MUL_OP:
 				case MAD_OP:
@@ -796,6 +802,10 @@ void ptx_instruction::set_opcode_and_latency()
 	   latency = 32;
 	   initiation_interval = 15;
 	   break;
+   case WMMA_MMA_OP:
+		// 8 tensor cores (modelled as SFU's); each WMMA requires 64 executions of a tensor core
+	   latency = 8;
+	   initiation_interval = 8; 
    default: 
        break;
    }
